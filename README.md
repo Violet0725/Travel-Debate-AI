@@ -5,9 +5,8 @@ A Multi-Agent Orchestration Engine that simulates a travel-planning negotiation 
 ---
 
 ## 🌐 Live Website
-
-Check out the live version here:  
-👉 [https://travel-debate-ai.vercel.app/](https://travel-debate-ai.vercel.app/)
+ 
+[https://travel-debate-ai.vercel.app/](https://travel-debate-ai.vercel.app/)
 ---
 
 ## 🚀 Features
