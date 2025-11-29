@@ -3,7 +3,7 @@
 import React, { useState } from 'react';
 import { Sun, Moon, Utensils, Camera, Bed, ChevronDown, ChevronUp } from 'lucide-react';
 
-// --- ROBUST PARSER (V3 - CLEANER) ---
+// --- ROBUST PARSER ---
 const parseItineraryToCards = (markdownText) => {
   if (!markdownText) return [];
   
@@ -16,11 +16,12 @@ const parseItineraryToCards = (markdownText) => {
     let currentActivity = null;
 
     lines.forEach(line => {
-      // Check for "Label:" pattern
+      // Matches "**Label:** Content" or "- **Label**: Content"
       const keyMatch = line.match(/(\*\*|__)?(.*?)(:|:\*\*|\*\*:)/);
 
       if (keyMatch) {
-        if (currentActivity) activities.push(currentActivity);
+        // --- FIX: Filter out currentActivity if it was empty (like the blank space before Morning) ---
+        if (currentActivity && currentActivity.content.length > 0) activities.push(currentActivity);
         
         // Clean the label (remove ** and -)
         const label = keyMatch[2].trim().replace(/\*\*/g, '').replace(/^-/, '').trim();
@@ -28,23 +29,28 @@ const parseItineraryToCards = (markdownText) => {
         // Extract content part
         let content = line.replace(keyMatch[0], '').trim();
         
-        // CLEANUP: Remove ALL bold markers (**) from the content text
-        content = content.replace(/\*\*/g, '').trim();
-        // Remove leading bullets/hyphens if they exist
-        content = content.replace(/^-\s*/, '');
+        // **CRITICAL FIX:** Only strip markdown AFTER content has been gathered.
+        // Also ensure we capture content even if it starts with a hyphen/bullet point
+        content = content.replace(/^-\s*/, ''); // Remove leading bullets/hyphens from the start of the content line
 
+        // CLEANUP: Remove ALL bold markers (**) and single asterisks (*) globally from the content text
+        content = content.replace(/\*\*/g, '').replace(/\*/g, '').trim(); 
+        
         const key = label.toLowerCase();
         let type = 'activity';
+        
+        // --- NEW/FIXED TYPE LOGIC ---
         if (key.includes('morning')) type = 'morning';
-        if (key.includes('lunch')) type = 'lunch';
+        if (key.includes('lunch') || key.includes('restaurant')) type = 'lunch'; // COMBINED LUNCH/RESTAURANT
         if (key.includes('afternoon')) type = 'afternoon';
         if (key.includes('dinner')) type = 'dinner';
-        if (key.includes('hotel')) type = 'hotel';
+        if (key.includes('hotel') || key.includes('stay')) type = 'hotel'; // COMBINED HOTEL/STAY
 
         currentActivity = { type, label, content };
       } else if (currentActivity) {
         // Append multi-line descriptions & clean them too
-        let cleanLine = line.replace(/\*\*/g, '').trim();
+        // Use a safe global strip function for clean lines
+        let cleanLine = line.replace(/\*\*/g, '').replace(/\*/g, '').trim(); 
         if (currentActivity.content.length > 0) {
           currentActivity.content += " " + cleanLine;
         } else {
@@ -53,7 +59,8 @@ const parseItineraryToCards = (markdownText) => {
       }
     });
 
-    if (currentActivity) activities.push(currentActivity);
+    // Push the last activity, but only if it's not empty
+    if (currentActivity && currentActivity.content.length > 0) activities.push(currentActivity);
     return { day: dayNumber, activities };
   });
 };
@@ -68,8 +75,9 @@ const ItineraryCard = ({ activity }) => {
     >
       <div className="flex gap-4 items-start">
         <div className="mt-1 shrink-0">
+          {/* ICON ASSIGNMENT (Using the fixed types) */}
           {activity.type === 'morning' && <div className="p-2 bg-orange-100 text-orange-600 rounded-lg"><Sun size={18} /></div>}
-          {activity.type === 'lunch' && <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Utensils size={18} /></div>}
+          {(activity.type === 'lunch' || activity.label.toLowerCase().includes('restaurant')) && <div className="p-2 bg-red-100 text-red-600 rounded-lg"><Utensils size={18} /></div>}
           {activity.type === 'afternoon' && <div className="p-2 bg-blue-100 text-blue-600 rounded-lg"><Camera size={18} /></div>}
           {activity.type === 'dinner' && <div className="p-2 bg-purple-100 text-purple-600 rounded-lg"><Moon size={18} /></div>}
           {activity.type === 'hotel' && <div className="p-2 bg-indigo-100 text-indigo-600 rounded-lg"><Bed size={18} /></div>}

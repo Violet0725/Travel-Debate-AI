@@ -24,8 +24,6 @@ import {
   ChevronDown,
   ChevronUp,
 } from "lucide-react";
-
-// FIX: Corrected import path with explicit .jsx extension
 import ItineraryDisplay from "./ItineraryDisplay.jsx";
 
 // --- SUB-COMPONENTS ---
