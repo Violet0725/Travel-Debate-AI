@@ -5,7 +5,7 @@ const inter = Inter({ subsets: ["latin"] });
 
 export const metadata = {
   title: "TravelDebate AI",
-  description: "Multi-Agent Orchestration Demo",
+  description: "Multi-Agent Orchestration",
 };
 
 export default function RootLayout({ children }) {
