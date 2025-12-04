@@ -1,19 +1,43 @@
-import Redis from 'ioredis';
 import Link from 'next/link';
 import { Map, Calendar } from 'lucide-react';
-// Import the visualizer component
+import { withRedis } from '@/app/lib/redis';
 import ItineraryDisplay from '../../components/ItineraryDisplay'; 
 
 export default async function TripPage({ params }) {
-  // 1. Await params (Fix for Next.js 15 crash)
+  // Await params (Fix for Next.js 15)
   const { id } = await params; 
   
-  // 2. Connect to Redis using the standard URL
-  const redis = new Redis(process.env.REDIS_URL);
-  const data = await redis.get(`trip:${id}`);
+  // Validate ID format (nanoid is 6 chars, alphanumeric)
+  if (!id || !/^[A-Za-z0-9_-]{6}$/.test(id)) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-6xl font-bold text-slate-200">400</h1>
+          <p className="text-xl">Invalid trip ID format.</p>
+          <Link href="/" className="text-blue-600 hover:underline">Return Home</Link>
+        </div>
+      </div>
+    );
+  }
   
-  // Close connection to prevent hanging
-  redis.quit();
+  // Fetch from Redis with proper connection handling
+  let data = null;
+  try {
+    data = await withRedis(async (redis) => {
+      return await redis.get(`trip:${id}`);
+    });
+  } catch (error) {
+    console.error('Failed to fetch trip:', error);
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-slate-50 text-slate-400 p-4">
+        <div className="text-center space-y-4">
+          <h1 className="text-6xl font-bold text-slate-200">500</h1>
+          <p className="text-xl">Failed to load trip. Please try again.</p>
+          <Link href="/" className="text-blue-600 hover:underline">Return Home</Link>
+        </div>
+      </div>
+    );
+  }
 
   if (!data) {
     return (

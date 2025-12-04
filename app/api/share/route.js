@@ -1,23 +1,52 @@
 import { NextResponse } from 'next/server';
-import Redis from 'ioredis';
 import { nanoid } from 'nanoid';
+import { withRedis } from '@/app/lib/redis';
+import { 
+  validateDestination, 
+  validateDays, 
+  validateItinerary,
+  ValidationError 
+} from '@/app/lib/validation';
 
-// Connect to Redis using the URL you have
-const redis = new Redis(process.env.REDIS_URL);
+// Trip expiration: 30 days in seconds
+const TRIP_EXPIRATION = 30 * 24 * 60 * 60;
 
 export async function POST(request) {
   try {
     const body = await request.json();
-    const { itinerary, destination, days } = body;
 
-    const id = nanoid(6); 
+    // Validate inputs
+    const itinerary = validateItinerary(body.itinerary);
+    const destination = validateDestination(body.destination);
+    const days = validateDays(body.days);
 
-    // Save to Redis
-    await redis.set(`trip:${id}`, JSON.stringify({ itinerary, destination, days }), 'EX', 2592000);
+    const id = nanoid(6);
+
+    // Save to Redis with proper connection handling
+    await withRedis(async (redis) => {
+      await redis.set(
+        `trip:${id}`, 
+        JSON.stringify({ itinerary, destination, days }), 
+        'EX', 
+        TRIP_EXPIRATION
+      );
+    });
 
     return NextResponse.json({ id });
+    
   } catch (error) {
     console.error("Share API Error:", error);
-    return NextResponse.json({ error: 'Failed to save trip' }, { status: 500 });
+    
+    if (error instanceof ValidationError) {
+      return NextResponse.json(
+        { error: error.message, field: error.field }, 
+        { status: 400 }
+      );
+    }
+    
+    return NextResponse.json(
+      { error: 'Failed to save trip' }, 
+      { status: 500 }
+    );
   }
 }

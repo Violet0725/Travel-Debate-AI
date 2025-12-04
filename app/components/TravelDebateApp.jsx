@@ -1,13 +1,12 @@
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState } from "react";
 import {
   Send,
   User,
   DollarSign,
   Crown,
   Scale,
-  Terminal,
   Cpu,
   Activity,
   Map,
@@ -16,135 +15,9 @@ import {
   Share2,
   Link as LinkIcon,
   Check,
-  Sun,
-  Moon,
-  Utensils,
-  Camera,
-  Bed,
-  ChevronDown,
-  ChevronUp,
 } from "lucide-react";
 import ItineraryDisplay from "./ItineraryDisplay.jsx";
-
-// --- SUB-COMPONENTS ---
-const AgentNode = ({ type, isActive, isThinking, label, icon: Icon, position }) => {
-  const getColors = () => {
-    switch (type) {
-      case "user":
-        return "border-blue-500 bg-blue-50 text-blue-700";
-      case "frugal":
-        return "border-emerald-500 bg-emerald-50 text-emerald-700";
-      case "boujee":
-        return "border-purple-500 bg-purple-50 text-purple-700";
-      case "mediator":
-        return "border-amber-500 bg-amber-50 text-amber-700";
-      default:
-        return "border-gray-200 bg-white";
-    }
-  };
-
-  return (
-    <div
-      className={`absolute transition-all duration-500 flex flex-col items-center justify-center w-28 h-28 rounded-full border-4 shadow-xl z-10 ${getColors()} ${
-        isActive
-          ? "scale-110 ring-4 ring-offset-2 ring-opacity-50 ring-blue-400"
-          : "scale-100 opacity-90"
-      }`}
-      style={{ left: position.x, top: position.y }}
-    >
-      <Icon size={32} className="mb-1" />
-      <span className="text-xs font-bold uppercase tracking-wide">{label}</span>
-      {isThinking && (
-        <div className="absolute -top-3 right-0 flex space-x-1 bg-white px-2 py-1 rounded-full shadow border border-gray-200">
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-          <div className="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-        </div>
-      )}
-    </div>
-  );
-};
-
-const Connection = ({ start, end, isActive, color }) => {
-  const offset = 56;
-  const startX = start.x + offset;
-  const startY = start.y + offset;
-  const endX = end.x + offset;
-  const endY = end.y + offset;
-
-  return (
-    <svg className="absolute top-0 left-0 w-full h-full pointer-events-none z-0 overflow-visible">
-      <defs>
-        <marker
-          id={`arrow-${color}`}
-          markerWidth="10"
-          markerHeight="10"
-          refX="20"
-          refY="3"
-          orient="auto"
-          markerUnits="strokeWidth"
-        >
-          <path d="M0,0 L0,6 L9,3 z" fill={color} />
-        </marker>
-      </defs>
-
-      <path
-        d={`M${startX},${startY} C${startX},${(startY + endY) / 2} ${endX},${(startY + endY) / 2} ${endX},${endY}`}
-        fill="none"
-        stroke="#e2e8f0"
-        strokeWidth="6"
-        strokeLinecap="round"
-      />
-
-      {isActive && (
-        <path
-          d={`M${startX},${startY} C${startX},${(startY + endY) / 2} ${endX},${(startY + endY) / 2} ${endX},${endY}`}
-          fill="none"
-          stroke={color}
-          strokeWidth="4"
-          strokeDasharray="12,12"
-          markerEnd={`url(#arrow-${color})`}
-          className="animate-flow"
-        />
-      )}
-    </svg>
-  );
-};
-
-const ChatMessage = ({ agent, text, isTyping }) => {
-  const getStyles = () => {
-    switch (agent) {
-      case "frugal":
-        return { bg: "bg-emerald-50 border-emerald-200", text: "text-emerald-900", name: "Penny (Frugal)", icon: DollarSign };
-      case "boujee":
-        return { bg: "bg-purple-50 border-purple-200", text: "text-purple-900", name: "Sterling (Luxury)", icon: Crown };
-      case "mediator":
-        return { bg: "bg-amber-50 border-amber-200", text: "text-amber-900", name: "Judge (Mediator)", icon: Scale };
-      default:
-        return { bg: "bg-gray-50", text: "text-gray-900", name: "System", icon: Cpu };
-    }
-  };
-
-  const style = getStyles();
-  const Icon = style.icon;
-
-  return (
-    <div
-      className={`flex flex-col p-4 rounded-xl border ${style.bg} ${style.text} mb-4 animate-in fade-in slide-in-from-bottom-2 duration-300 shadow-sm`}
-    >
-      <div className="flex items-center space-x-2 mb-2 font-bold opacity-90">
-        <div className="p-1 bg-white/50 rounded-full">
-          <Icon size={14} />
-        </div>
-        <span>{style.name}</span>
-      </div>
-      <div className="text-sm leading-relaxed whitespace-pre-wrap">
-        {text}
-        {isTyping && <span className="animate-pulse ml-1">|</span>}
-      </div>
-    </div>
-  );
-};
+import { AgentNode, Connection, ChatMessage } from "./debate";
 
 // --- MAIN COMPONENT ---
 export default function TravelDebateApp() {
@@ -174,17 +47,73 @@ export default function TravelDebateApp() {
     console.log(`[LOG] [${type.toUpperCase()}] ${message}`);
   };
 
-  const fetchAgentResponse = async (agent, destination, context = "") => {
+  // Stream response from API and update messages in real-time
+  const streamAgentResponse = async (agent, destination, context = "", messageIndex) => {
     try {
-      const res = await fetch("/api/chat", {
+      const res = await fetch("/api/chat/stream", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ destination, agent, context }),
       });
-      const data = await res.json();
-      return data.text;
+
+      if (!res.ok) {
+        throw new Error(`HTTP error! status: ${res.status}`);
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let fullText = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        const chunk = decoder.decode(value);
+        const lines = chunk.split("\n");
+
+        for (const line of lines) {
+          if (line.startsWith("data: ")) {
+            const data = line.slice(6);
+            if (data === "[DONE]") continue;
+            
+            try {
+              const parsed = JSON.parse(data);
+              if (parsed.content) {
+                fullText += parsed.content;
+                setMessages((prev) => {
+                  const newArr = [...prev];
+                  if (newArr[messageIndex]) {
+                    newArr[messageIndex] = { agent, text: fullText, isTyping: true };
+                  }
+                  return newArr;
+                });
+              }
+            } catch (e) {
+              // Skip invalid JSON
+            }
+          }
+        }
+      }
+
+      // Mark as done typing
+      setMessages((prev) => {
+        const newArr = [...prev];
+        if (newArr[messageIndex]) {
+          newArr[messageIndex] = { agent, text: fullText, isTyping: false };
+        }
+        return newArr;
+      });
+
+      return fullText;
     } catch (error) {
-      addLog(`Error fetching ${agent}: ${error.message}`, "error");
+      addLog(`Error streaming ${agent}: ${error.message}`, "error");
+      setMessages((prev) => {
+        const newArr = [...prev];
+        if (newArr[messageIndex]) {
+          newArr[messageIndex] = { agent, text: "Connection Error.", isTyping: false };
+        }
+        return newArr;
+      });
       return "Connection Error.";
     }
   };
@@ -200,16 +129,28 @@ export default function TravelDebateApp() {
         body: JSON.stringify({
           destination: input,
           preference: selectedPreference,
-          days,
+          days: parseInt(days, 10), // Ensure days is always a number
           context: debateContext,
         }),
       });
+      
+      if (!res.ok) {
+        const errorData = await res.json().catch(() => ({}));
+        throw new Error(errorData.error || `HTTP error: ${res.status}`);
+      }
+      
       const data = await res.json();
+      
+      if (!data.text) {
+        throw new Error("No itinerary content received");
+      }
+      
       setItinerary(data.text);
       setPhase("result");
       addLog("Itinerary generated.", "system");
     } catch (error) {
-      addLog("Failed to generate itinerary.", "error");
+      console.error("Itinerary generation failed:", error);
+      addLog(`Failed to generate itinerary: ${error.message}`, "error");
       setPhase("selection");
     }
   };
@@ -252,38 +193,10 @@ export default function TravelDebateApp() {
     }
   };
 
-  const streamText = async (agent, fullText) => {
-    return new Promise((resolve) => {
-      let currentText = "";
-      setMessages((prev) => [...prev, { agent, text: "", isTyping: true }]);
-      let i = 0;
-
-      const interval = setInterval(() => {
-        currentText += fullText[i];
-        setMessages((prev) => {
-          const newArr = [...prev];
-          newArr[newArr.length - 1] = { agent, text: currentText, isTyping: true };
-          return newArr;
-        });
-        i++;
-        if (i >= fullText.length) {
-          clearInterval(interval);
-          setMessages((prev) => {
-            const newArr = [...prev];
-            newArr[newArr.length - 1] = { agent, text: currentText, isTyping: false };
-            return newArr;
-          });
-          resolve();
-        }
-      }, 10);
-    });
-  };
-
   const handleStart = async () => {
     if (!input.trim()) return;
 
     setPhase("orchestration");
-    setMessages([]);
     setItinerary("");
     setShareId(null);
     setActiveAgent("user");
@@ -291,28 +204,36 @@ export default function TravelDebateApp() {
     addLog(`Target Destination: "${input}"`);
     addLog("Initializing Agent Swarm...", "system");
 
-    await new Promise((r) => setTimeout(r, 800));
-    setActiveAgent(null);
-    addLog("Dispatching parallel requests...", "system");
+    await new Promise((r) => setTimeout(r, 600));
+    
+    // Initialize both message slots for parallel streaming
+    setMessages([
+      { agent: "frugal", text: "", isTyping: true },
+      { agent: "boujee", text: "", isTyping: true },
+    ]);
+    
+    addLog("Dispatching PARALLEL requests to Penny & Sterling...", "system");
+    setActiveAgent("both"); // Show both agents active
 
-    setActiveAgent("frugal");
-    const frugalRes = await fetchAgentResponse("frugal", input);
-    await streamText("frugal", frugalRes);
+    // Run frugal and boujee in PARALLEL with true streaming
+    const [frugalRes, boujeeRes] = await Promise.all([
+      streamAgentResponse("frugal", input, "", 0),
+      streamAgentResponse("boujee", input, "", 1),
+    ]);
 
-    setActiveAgent("boujee");
-    const boujeeRes = await fetchAgentResponse("boujee", input);
-    await streamText("boujee", boujeeRes);
-
-    setActiveAgent(null);
-    await new Promise((r) => setTimeout(r, 800));
+    addLog("Both agents responded. Synthesizing compromise...", "system");
+    
+    await new Promise((r) => setTimeout(r, 400));
     setActiveAgent("mediator");
-    addLog("Synthesizing compromise...", "system");
+
+    // Add mediator message slot
+    setMessages((prev) => [...prev, { agent: "mediator", text: "", isTyping: true }]);
 
     const context = `Budget Option: ${frugalRes}. Luxury Option: ${boujeeRes}`;
     setDebateContext(context);
 
-    const mediatorRes = await fetchAgentResponse("mediator", input, context);
-    await streamText("mediator", mediatorRes);
+    // Stream mediator response
+    await streamAgentResponse("mediator", input, context, 2);
 
     addLog("Debate Concluded. Waiting for user decision.", "system");
     setActiveAgent(null);
@@ -346,8 +267,8 @@ export default function TravelDebateApp() {
 
           <div className="flex-1 flex items-center justify-center relative min-h-[600px]">
             <div className="relative w-[800px] h-[550px]">
-              <Connection start={POSITIONS.user} end={POSITIONS.frugal} isActive={activeAgent === "frugal"} color="#10b981" />
-              <Connection start={POSITIONS.user} end={POSITIONS.boujee} isActive={activeAgent === "boujee"} color="#a855f7" />
+              <Connection start={POSITIONS.user} end={POSITIONS.frugal} isActive={activeAgent === "frugal" || activeAgent === "both"} color="#10b981" />
+              <Connection start={POSITIONS.user} end={POSITIONS.boujee} isActive={activeAgent === "boujee" || activeAgent === "both"} color="#a855f7" />
               <Connection start={POSITIONS.frugal} end={POSITIONS.mediator} isActive={activeAgent === "mediator"} color="#f59e0b" />
               <Connection start={POSITIONS.boujee} end={POSITIONS.mediator} isActive={activeAgent === "mediator"} color="#f59e0b" />
 
@@ -357,16 +278,16 @@ export default function TravelDebateApp() {
                 label="Penny"
                 icon={DollarSign}
                 position={POSITIONS.frugal}
-                isActive={activeAgent === "frugal"}
-                isThinking={activeAgent === "frugal"}
+                isActive={activeAgent === "frugal" || activeAgent === "both"}
+                isThinking={activeAgent === "frugal" || activeAgent === "both"}
               />
               <AgentNode
                 type="boujee"
                 label="Sterling"
                 icon={Crown}
                 position={POSITIONS.boujee}
-                isActive={activeAgent === "boujee"}
-                isThinking={activeAgent === "boujee"}
+                isActive={activeAgent === "boujee" || activeAgent === "both"}
+                isThinking={activeAgent === "boujee" || activeAgent === "both"}
               />
               <AgentNode
                 type="mediator"
